@@ -1,0 +1,214 @@
+{
+  "adaptiveform": "0.14.0",
+  "metadata": {
+    "grammar": "json-formula-1.0.0",
+    "version": "1.0.0"
+  },
+  "body": {
+    "id": "L2Zvcm0%3D",
+    "title": "Contact Information Form",
+    "description": "A sample form for collecting contact and personal information",
+    "fieldType": "form",
+    "action": "/submit",
+    "method": "POST",
+    "items": [
+      {
+        "id": "personalInfo",
+        "name": "personalInfo",
+        "fieldType": "panel",
+        "title": "Personal Information",
+        "visible": true,
+        "enabled": true,
+        "items": [
+          {
+            "id": "firstName",
+            "name": "firstName",
+            "fieldType": "text-input",
+            "title": "First Name",
+            "label": "First Name",
+            "description": "Enter your first name",
+            "placeholder": "John",
+            "required": true,
+            "visible": true,
+            "enabled": true,
+            "readOnly": false
+          },
+          {
+            "id": "lastName",
+            "name": "lastName",
+            "fieldType": "text-input",
+            "title": "Last Name",
+            "label": "Last Name",
+            "description": "Enter your last name",
+            "placeholder": "Doe",
+            "required": true,
+            "visible": true,
+            "enabled": true,
+            "readOnly": false
+          },
+          {
+            "id": "dateOfBirth",
+            "name": "dateOfBirth",
+            "fieldType": "date-input",
+            "title": "Date of Birth",
+            "label": "Date of Birth",
+            "description": "Select your date of birth",
+            "required": false,
+            "visible": true,
+            "enabled": true,
+            "readOnly": false
+          }
+        ]
+      },
+      {
+        "id": "contactInfo",
+        "name": "contactInfo",
+        "fieldType": "panel",
+        "title": "Contact Information",
+        "visible": true,
+        "enabled": true,
+        "items": [
+          {
+            "id": "email",
+            "name": "email",
+            "fieldType": "email",
+            "title": "Email Address",
+            "label": "Email Address",
+            "description": "Enter your email address",
+            "placeholder": "john.doe@example.com",
+            "required": true,
+            "visible": true,
+            "enabled": true,
+            "readOnly": false,
+            "pattern": "^[\\w\\.-]+@[\\w\\.-]+\\.[a-zA-Z]{2,}$"
+          },
+          {
+            "id": "phone",
+            "name": "phone",
+            "fieldType": "tel",
+            "title": "Phone Number",
+            "label": "Phone Number",
+            "description": "Enter your phone number",
+            "placeholder": "+1 (555) 123-4567",
+            "required": true,
+            "visible": true,
+            "enabled": true,
+            "readOnly": false
+          },
+          {
+            "id": "address",
+            "name": "address",
+            "fieldType": "multiline-input",
+            "title": "Address",
+            "label": "Street Address",
+            "description": "Enter your complete address",
+            "placeholder": "123 Main Street\nCity, State ZIP",
+            "required": false,
+            "visible": true,
+            "enabled": true,
+            "readOnly": false
+          }
+        ]
+      },
+      {
+        "id": "preferences",
+        "name": "preferences",
+        "fieldType": "panel",
+        "title": "Preferences",
+        "visible": true,
+        "enabled": true,
+        "items": [
+          {
+            "id": "preferredContact",
+            "name": "preferredContact",
+            "fieldType": "radio-group",
+            "title": "Preferred Contact Method",
+            "label": "How would you like to be contacted?",
+            "description": "Choose your preferred contact method",
+            "required": true,
+            "visible": true,
+            "enabled": true,
+            "readOnly": false,
+            "enum": ["email", "phone", "text"],
+            "enumNames": ["Email", "Phone Call", "Text Message"]
+          },
+          {
+            "id": "interests",
+            "name": "interests",
+            "fieldType": "checkbox-group",
+            "title": "Areas of Interest",
+            "label": "What are you interested in?",
+            "description": "Select all that apply",
+            "required": false,
+            "visible": true,
+            "enabled": true,
+            "readOnly": false,
+            "enum": ["technology", "business", "design", "marketing", "other"],
+            "enumNames": ["Technology", "Business", "Design", "Marketing", "Other"]
+          },
+          {
+            "id": "company",
+            "name": "company",
+            "fieldType": "text-input",
+            "title": "Company Name",
+            "label": "Company/Organization",
+            "description": "Enter your company or organization name",
+            "placeholder": "Acme Corporation",
+            "required": false,
+            "visible": true,
+            "enabled": true,
+            "readOnly": false
+          },
+          {
+            "id": "jobTitle",
+            "name": "jobTitle",
+            "fieldType": "text-input",
+            "title": "Job Title",
+            "label": "Job Title/Position",
+            "description": "Enter your job title or position",
+            "placeholder": "Software Engineer",
+            "required": false,
+            "visible": true,
+            "enabled": true,
+            "readOnly": false
+          }
+        ]
+      },
+      {
+        "id": "additional",
+        "name": "additional",
+        "fieldType": "panel",
+        "title": "Additional Information",
+        "visible": true,
+        "enabled": true,
+        "items": [
+          {
+            "id": "comments",
+            "name": "comments",
+            "fieldType": "multiline-input",
+            "title": "Comments",
+            "label": "Additional Comments",
+            "description": "Any additional information you'd like to share",
+            "placeholder": "Please share any additional information...",
+            "required": false,
+            "visible": true,
+            "enabled": true,
+            "readOnly": false
+          },
+          {
+            "id": "newsletter",
+            "name": "newsletter",
+            "fieldType": "checkbox",
+            "title": "Newsletter Subscription",
+            "label": "Subscribe to our newsletter",
+            "description": "Check this box to receive our weekly newsletter",
+            "required": false,
+            "visible": true,
+            "enabled": true,
+            "readOnly": false
+          }
+        ]
+      }
+    ]
+  }
+} 

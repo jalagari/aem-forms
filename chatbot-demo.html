@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversational Form Demo</title>
+    <link rel="stylesheet" href="styles/styles.css">
+    <link rel="stylesheet" href="blocks/chatbot/chatbot.css">
+</head>
+<body>
+    <div class="demo-container">
+        <div class="demo-content">
+            <h1>AEM Forms - Conversational</h1>
+            <p>Transform traditional web forms into natural, AI-powered conversations. Enter a form URL below to get started.</p>
+            
+            <div class="form-input-section">
+                <h3>🚀 Start Conversational Form</h3>
+                <input type="text" 
+                       id="formUrl" 
+                       class="form-url-input"
+                       placeholder="Enter form URL (e.g., https://example.com/form)" 
+                       value="https://main--aem-boilerplate-forms--adobe-rnd.aem.live/content/jalagari/all">
+                <br>
+                <button class="start-button" onclick="startConversationalForm()">
+                    🔄 Start Conversation
+                </button>
+            </div>
+            
+            <h2>🎨 Widget Examples</h2>
+            <p>Click these buttons to see how different form widgets appear in the chatbot:</p>
+            <div class="demo-buttons">
+                <button class="demo-button" onclick="showTextExample()">
+                    📝 Text Input
+                </button>
+                <button class="demo-button" onclick="showNumberExample()">
+                    🔢 Number Field
+                </button>
+                <button class="demo-button" onclick="showBooleanExample()">
+                    ✅ Yes/No Choice
+                </button>
+                <button class="demo-button" onclick="showChoiceExample()">
+                    📋 Multiple Choice
+                </button>
+                <button class="demo-button" onclick="showDateExample()">
+                    📅 Date Picker
+                </button>
+                <button class="demo-button" onclick="showFileExample()">
+                    📎 File Upload
+                </button>
+                <button class="demo-button" onclick="showEmailExample()">
+                    📧 Email Field
+                </button>
+                <button class="demo-button" onclick="showPhoneExample()">
+                    📞 Phone Number
+                </button>
+            </div>
+            
+            <div class="actions-section">
+                <h3>🛠️ Additional Actions</h3>
+                <div class="actions-grid">
+                    <button class="action-button" onclick="showCollectedData()">
+                        📊 Show Data
+                    </button>
+                    <button class="action-button" onclick="showProgress()">
+                        📈 Show Progress
+                    </button>
+                    <button class="action-button" onclick="showHistory()">
+                        📋 Show History
+                    </button>
+                    <button class="action-button" onclick="exportData()">
+                        💾 Export Data
+                    </button>
+                    <button class="action-button" onclick="resetForm()">
+                        🔄 Reset Form
+                    </button>
+                    <button class="action-button danger" onclick="clearChat()">
+                        🗑️ Clear Chat
+                    </button>
+                </div>
+            </div>
+            
+            <div class="widget-demo">
+                <h4>💡 How It Works</h4>
+                <p>Instead of asking "What's your first name?", "What's your last name?", "What's your email?" separately, the AI asks: <strong>"Could you share your basic information - your full name and email address?"</strong></p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import decorate from './blocks/chatbot/chatbot.js';
+        import Conversational from './blocks/chatbot/conversational.js';
+        
+        // Initialize chatbot
+        const chatbot = decorate();
+        window.conversational = new Conversational();
+        
+        // Register handler for user responses
+        conversational.addEventListener('conversationUpdated', (e) => {
+            chatbot.postMessage({
+                type: 'text',
+                content: e.detail.message,
+                sender: e.detail.role
+            });
+        });
+
+        chatbot.addEventListener('messageReceived', (e) => {
+            conversational.processUserResponse(e.detail.content);
+        });
+
+        // Main function to start conversational form
+        window.startConversationalForm = () => {
+            const formUrl = document.getElementById('formUrl').value.trim();
+            if (!formUrl) {
+                alert('Please enter a form URL');
+                return;
+            }
+            
+            chatbot.clearMessages();
+            chatbot.postMessage({
+                type: 'system',
+                content: '🚀 Starting conversational form experience...'
+            });
+            
+            conversational.start(formUrl);
+        };
+        
+        // Widget example functions
+        window.showTextExample = () => {
+            chatbot.postMessage({
+                type: 'text',
+                content: '📝 **Text Input Example:**\n\n"What\'s your full name?" - User types their response directly in the chat.'
+            });
+        };
+        
+        window.showNumberExample = () => {
+            chatbot.postMessage({
+                type: 'text',
+                content: '🔢 **Number Field Example:**\n\n"How old are you?" - User types a number, with automatic validation.'
+            });
+        };
+        
+        window.showBooleanExample = () => {
+            chatbot.postMessage({
+                type: 'boolean',
+                content: '✅ **Yes/No Choice Example:**\n\nDo you agree to the terms?',
+                boolean: {
+                    name: 'example_agreement',
+                    trueLabel: '✅ Yes, I agree',
+                    falseLabel: '❌ No, I disagree'
+                },
+                onSubmit: (data) => {
+                    chatbot.postMessage({
+                        type: 'text',
+                        content: `You selected: ${data.example_agreement ? 'Yes' : 'No'}`
+                    });
+                }
+            });
+        };
+        
+        window.showChoiceExample = () => {
+            chatbot.postMessage({
+                type: 'choice',
+                content: '📋 **Multiple Choice Example:**\n\nWhat are your interests?',
+                choices: {
+                    type: 'multiple',
+                    name: 'example_interests',
+                    options: ['Technology', 'Design', 'Marketing', 'Sports', 'Travel']
+                },
+                onSubmit: (data) => {
+                    chatbot.postMessage({
+                        type: 'text',
+                        content: `You selected: ${data.example_interests.join(', ')}`
+                    });
+                }
+            });
+        };
+        
+        window.showDateExample = () => {
+            chatbot.postMessage({
+                type: 'field',
+                content: '📅 **Date Picker Example:**\n\nWhen were you born?',
+                field: { 
+                    type: 'date', 
+                    name: 'example_date',
+                    required: true 
+                },
+                onSubmit: (data) => {
+                    chatbot.postMessage({
+                        type: 'text',
+                        content: `You selected: ${data.example_date}`
+                    });
+                }
+            });
+        };
+        
+        window.showFileExample = () => {
+            chatbot.postMessage({
+                type: 'field',
+                content: '📎 **File Upload Example:**\n\nPlease upload your resume:',
+                field: { 
+                    type: 'file', 
+                    name: 'example_file',
+                    accept: '.pdf,.doc,.docx' 
+                },
+                onSubmit: (data) => {
+                    chatbot.postMessage({
+                        type: 'text',
+                        content: `File uploaded: ${data.example_file?.name || 'No file selected'}`
+                    });
+                }
+            });
+        };
+        
+        window.showEmailExample = () => {
+            chatbot.postMessage({
+                type: 'text',
+                content: '📧 **Email Field Example:**\n\n"What\'s your email address?" - Includes automatic email validation.'
+            });
+        };
+        
+        window.showPhoneExample = () => {
+            chatbot.postMessage({
+                type: 'text',
+                content: '📞 **Phone Number Example:**\n\n"What\'s your phone number?" - Formats and validates phone numbers automatically.'
+            });
+        };
+        
+        // Action functions
+        window.showCollectedData = () => {
+            const data = conversational.getCollectedData();
+            if (Object.keys(data).length === 0) {
+                chatbot.postMessage({
+                    type: 'text',
+                    content: "📊 No form data collected yet. Start a conversational form to see collected data!"
+                });
+            } else {
+                chatbot.postMessage({
+                    type: 'text',
+                    content: `📊 **Collected Data:**\n\n${Object.entries(data).map(([key, value]) => `• ${key}: ${value}`).join('\n')}`
+                });
+            }
+        };
+        
+        window.showProgress = () => {
+            const progress = conversational.getProgress();
+            chatbot.postMessage({
+                type: 'text',
+                content: `📈 **Progress:** ${progress.current}/${progress.total} fields completed (${progress.percentage}%)`
+            });
+        };
+        
+        window.showHistory = () => {
+            const history = conversational.getConversationHistory();
+            if (history.length === 0) {
+                chatbot.postMessage({
+                    type: 'text',
+                    content: "📋 No conversation history yet. Start a form to see the history!"
+                });
+            } else {
+                chatbot.postMessage({
+                    type: 'text',
+                    content: `📋 **Conversation History:**\n\n${history.length} messages exchanged`
+                });
+            }
+        };
+        
+        window.exportData = () => {
+            const data = conversational.getCollectedData();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'form-data.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            chatbot.postMessage({
+                type: 'text',
+                content: "💾 Form data exported as JSON file!"
+            });
+        };
+        
+        window.resetForm = () => {
+            conversational.reset();
+            chatbot.postMessage({
+                type: 'text',
+                content: "🔄 Form data and conversation reset!"
+            });
+        };
+        
+        window.clearChat = () => {
+            chatbot.clearMessages();
+        };
+        
+        // Initialize with welcome message
+        setTimeout(() => {
+            chatbot.postMessage({
+                type: 'text',
+                content: '👋 Welcome to Conversational Forms! Enter a form URL above to start, or try the widget examples.'
+            });
+            // Open chatbot automatically after a delay
+            setTimeout(() => {
+                const popupWrapper = document.getElementById('chatbot-popup');
+                if (popupWrapper && !popupWrapper.classList.contains('is-open')) {
+                    document.getElementById('chatbot-launcher').click();
+                }
+            }, 1500);
+        }, 1000);
+    </script>
+</body>
+</html> 

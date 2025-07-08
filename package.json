@@ -23,6 +23,7 @@
     "url": "https://github.com/adobe/aem-block-collection/issues"
   },
   "homepage": "https://github.com/adobe/aem-block-collection#readme",
+  "dependencies": {},
   "devDependencies": {
     "@babel/eslint-parser": "7.24.8",
     "eslint": "8.57.0",

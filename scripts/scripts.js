@@ -204,9 +204,36 @@ async function loadSidekick() {
   });
 }
 
+function decorateArea(area = document) {
+  console.log('decorateArea', area);
+}
+
+const CONFIG = {
+  nxBase: location.origin,
+  codeBase: location.origin,
+  imsClientId: 'darkalley',
+  imsScope: 'ab.manage,AdobeID,gnav,openid,org.read,read_organizations,session,aem.frontend.all,additional_info.ownerOrg,additional_info.projectedProductContext',
+};
+
+const nx = 'https://main--nexter--da-sites.hlx.live/nx';
+const { loadArea, setConfig } = await import(`${nx}/scripts/nexter.js`);
+setConfig(CONFIG);
+
+function postLoad() {
+  const nav = document.querySelector("nx-nav");
+  if (nav && nav.shadowRoot) {
+    const brand = nav.shadowRoot.querySelector(".nx-nav-brand");
+    if (brand) {
+      brand.textContent = "AEM Forms"
+    }
+  }
+}
+
 async function loadPage() {
+  loadArea();
   await loadEager(document);
   await loadLazy(document);
+  postLoad();
   loadDelayed();
   loadSidekick();
 }
