@@ -113,21 +113,50 @@ class AIModel{
         2.  Choose 2-5 logically related fields to ask about in one question (e.g., name, email, phone).
         3.  Create a single, friendly, conversational message asking for the selected fields.
         4.  Do not ask for fields that are not in the schema.
-        5.  Never include field id in question
-        6.  In your response, you MUST provide the 'id' of each field you are asking for. The 'id' is available inside each field's definition in the schema. Do NOT use the field name (the key in the "properties" object).
+        5.  NEVER include field IDs in the conversational question. The question should be natural and user-friendly.
+        6.  In your response, you MUST provide the actual 'id' values from the schema in requestedFields array. Use the real field IDs, not placeholder values like "id1", "id2", "id3".
 
-        GROUPING EXAMPLES:
+        GROUPING EXAMPLES (GOOD):
         - "Hi! Let's start with your basic information. Could you tell me your full name, email address, and phone number?"
         - "Now I need your address details. What's your street address, city, state, and zip code?"
         - "Tell me about your preferences - what's your preferred contact method and any specific interests?"
 
+        EXAMPLES OF WHAT NOT TO DO (BAD):
+        - ❌ "Could you provide your first name (textinput-400472a990), last name (textinput-5dba1787fa), and email (textinput-a85ef0ebe0)?"
+        - ❌ "Please enter your name (firstName) and email (emailAddress)."
+        - ❌ "I need your first_name, last_name, and email_address fields."
+        - ❌ Using placeholder values like ["id1", "id2", "id3"] in requestedFields
+        - ❌ Including any technical IDs or field names in the conversational message
+
         CRITICAL: You MUST return ONLY a single, valid JSON object. No other text, explanations, or comments.
+
+        CRITICAL RULES TO FOLLOW:
+        1. The "message" field should be completely natural - NO field IDs, NO technical terms
+        2. The "requestedFields" array must contain the ACTUAL field IDs from the schema, not placeholders
+        3. Never use dummy values like "id1", "id2", "id3" - use the real field IDs
+        4. IMPORTANT: Use the "id" values (like "textinput-122b6bee3e"), NOT the property keys (like "name")
 
         REQUIRED JSON FORMAT:
         {
         "message": "A conversational question asking for multiple related fields.",
         "requestedFields": ["id1", "id2", "id3"]
         }
+
+        EXAMPLE SCHEMA STRUCTURE:
+        {
+          "properties": {
+            "name": {
+              "id": "textinput-122b6bee3e",
+              "type": "string"
+            },
+            "email": {
+              "id": "textinput-c1afffeece", 
+              "type": "string"
+            }
+          }
+        }
+
+        In this example, if asking for both fields, use: ["textinput-122b6bee3e", "textinput-c1afffeece"] (the id values, not the property keys like "name" or "email").
 
         Now, choose the most logical group of fields to ask for and generate the JSON response.`;
 

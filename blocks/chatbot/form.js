@@ -178,14 +178,6 @@ export default class Form extends EventTarget {
                 break;
             }
         });
-        if (!this.instance._eventQueue._isProcessing) {
-            this.dispatchEvent(new CustomEvent('importComplete', {
-                detail: {
-                    fillableFields: this.fillableFields,
-                    totalFields: this.fieldsArray.length
-                }
-            }));
-        }
     }
 
     subscribe() {
@@ -196,15 +188,6 @@ export default class Form extends EventTarget {
         this.instance.subscribe((e) => {
             this.handleFormEvent(e);
           }, 'change');
-
-        this.instance.subscribe((e) => {
-            this.dispatchEvent(new CustomEvent('importComplete', {
-                detail: {
-                    fillableFields: this.fillableFields,
-                    totalFields: this.fieldsArray.length
-                }
-            }));
-          }, 'importData');
 
           this.instance.subscribe((e) => {
             this.handleFormEvent(e);
@@ -302,6 +285,7 @@ export default class Form extends EventTarget {
     async updateFormData(data) {
         console.log("Updating form data", data);
         this.instance.importData(data);
+        console.log("Form data updated", this.instance.getState(), this.instance._eventQueue._isProcessing);
     }
 
     /**

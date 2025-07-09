@@ -145,7 +145,8 @@ export default class Conversational extends EventTarget {
                 this.updateConversationHistory(`Collected Data: ${JSON.stringify(this.collectedData)}`, 'system');
                 console.log("Collected Data", this.collectedData);
                 this.updateConversationHistory("Updating form data...", 'system');
-                this.form.updateFormData(this.collectedData);
+                await this.form.updateFormData(this.collectedData);
+                await this.invalidField();
             } else {
                 this.updateConversationHistory("I didn't quite understand that. Could you please try again?", 'assistant', this.currentRequestedFields);
             }
