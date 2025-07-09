@@ -87,8 +87,9 @@ class AIModel{
                         1. ALWAYS return ONLY valid JSON - no other text
                         2. Never include explanations, comments, or conversational text
                         3. Never ask questions about the format - just return JSON
-                        4. Group related fields naturally (name+age+dob, email+phone+address, etc.)
-                        5. Extract multiple values from user responses intelligently
+                        4. For questions: Create natural, friendly questions that group related fields
+                        5. For extraction: Extract values accurately from user responses
+                        6. Handle field types appropriately (text, number, boolean, choice, date, file)
                         
                         NO OTHER TEXT ALLOWED - ONLY JSON!` 
                     }
@@ -100,65 +101,55 @@ class AIModel{
     }
 
     async getSmartQuestion(schema) {
-        const prompt = `You are a conversational assistant that creates questions to fill a form.
-        Your goal is to group related fields and ask for them in a natural way.
+        const prompt = `You are a conversational assistant that creates natural questions to collect form data.
+        Your goal is to group related fields and ask for them in a friendly, conversational way.
 
-        Based on the JSON Schema of available fields below, do the following:
+        Based on the JSON Schema of available fields below, create a question:
 
         JSON Schema of available fields:
         ${JSON.stringify(schema, null, 2)}
 
         INSTRUCTIONS:
-        1.  Examine the schema's "properties" to see the available fields.
-        2.  Choose 2-5 logically related fields to ask about in one question (e.g., name, email, phone).
-        3.  Create a single, friendly, conversational message asking for the selected fields.
-        4.  Do not ask for fields that are not in the schema.
-        5.  NEVER include field IDs in the conversational question. The question should be natural and user-friendly.
-        6.  In your response, you MUST provide the actual 'id' values from the schema in requestedFields array. Use the real field IDs, not placeholder values like "id1", "id2", "id3".
+        1. Examine the schema's "properties" to see the available fields.
+        2. ALL fields provided in the schema should be included in your question (up to 4 fields maximum).
+        3. Create a single, friendly, conversational message asking for ALL the provided fields.
+        4. Group the fields logically in your question (e.g., name+email+phone, address fields, preferences).
+        5. NEVER include field IDs, technical names, or enum values in the conversational question.
+        6. Use the field's description, placeholder, or label to create natural questions.
+        7. For enum fields, don't list the options in the question - let the UI handle that.
+
+        FIELD TYPE GUIDELINES:
+        - Text fields: Ask naturally ("What's your name?", "What's your email?")
+        - Number fields: Be specific ("How old are you?", "What's your phone number?")
+        - Boolean fields: Ask yes/no questions ("Do you agree to the terms?")
+        - Choice fields: Ask for preference ("What's your preferred contact method?")
+        - Date fields: Be specific about the date needed ("When were you born?")
+        - File fields: Be clear about what to upload ("Please upload your resume")
 
         GROUPING EXAMPLES (GOOD):
-        - "Hi! Let's start with your basic information. Could you tell me your full name, email address, and phone number?"
-        - "Now I need your address details. What's your street address, city, state, and zip code?"
-        - "Tell me about your preferences - what's your preferred contact method and any specific interests?"
+        - "Let's start with your basic information. What's your full name, email address, and phone number?"
+        - "Now I need your contact details. What's your phone number, preferred contact method, and any additional notes?"
+        - "Tell me about your address - what's your street address, city, state, and zip code?"
 
         EXAMPLES OF WHAT NOT TO DO (BAD):
-        - ❌ "Could you provide your first name (textinput-400472a990), last name (textinput-5dba1787fa), and email (textinput-a85ef0ebe0)?"
+        - ❌ "Could you provide your first name (textinput-400472a990), last name (textinput-5dba1787fa)?"
         - ❌ "Please enter your name (firstName) and email (emailAddress)."
         - ❌ "I need your first_name, last_name, and email_address fields."
-        - ❌ Using placeholder values like ["id1", "id2", "id3"] in requestedFields
-        - ❌ Including any technical IDs or field names in the conversational message
+        - ❌ "Choose from: email, phone, sms" (let the UI show options)
 
         CRITICAL: You MUST return ONLY a single, valid JSON object. No other text, explanations, or comments.
 
-        CRITICAL RULES TO FOLLOW:
-        1. The "message" field should be completely natural - NO field IDs, NO technical terms
-        2. The "requestedFields" array must contain the ACTUAL field IDs from the schema, not placeholders
-        3. Never use dummy values like "id1", "id2", "id3" - use the real field IDs
-        4. IMPORTANT: Use the "id" values (like "textinput-122b6bee3e"), NOT the property keys (like "name")
-
         REQUIRED JSON FORMAT:
         {
-        "message": "A conversational question asking for multiple related fields.",
-        "requestedFields": ["id1", "id2", "id3"]
+        "message": "A conversational question asking for the selected fields naturally.",
+        "requestedFields": ["field_id_1", "field_id_2", "field_id_3"]
         }
 
-        EXAMPLE SCHEMA STRUCTURE:
-        {
-          "properties": {
-            "name": {
-              "id": "textinput-122b6bee3e",
-              "type": "string"
-            },
-            "email": {
-              "id": "textinput-c1afffeece", 
-              "type": "string"
-            }
-          }
-        }
+        The "requestedFields" array must contain the actual field IDs from the schema (the "id" values), not placeholder values.
 
-        In this example, if asking for both fields, use: ["textinput-122b6bee3e", "textinput-c1afffeece"] (the id values, not the property keys like "name" or "email").
+        IMPORTANT: Include ALL fields provided in the schema in your question and requestedFields array. Do not skip any fields.
 
-        Now, choose the most logical group of fields to ask for and generate the JSON response.`;
+        Now, create a question for ALL the provided fields and generate the JSON response.`;
 
         try {
             const response = await this.session.prompt(prompt);
@@ -190,31 +181,49 @@ class AIModel{
         
         INSTRUCTIONS:
         For each field in the JSON schema, create a JSON object with the following properties:
-        1.  \`name\`: The name of the field from the schema (e.g., "Full_Name", "email_address").
+        1.  \`name\`: The field name from the schema (e.g., "firstName", "email").
         2.  \`value\`: The data extracted from the user's content for that field.
         3.  \`confidence\`: A score from 0.0 (uncertain) to 1.0 (certain) of your confidence.
-        4.  \`reasoning\`: A brief explanation of *why* you extracted that value or why it's missing.
+        4.  \`reasoning\`: A brief explanation of why you extracted that value or why it's missing.
         
-        EXTRACTION RULES:
-        - **Explicit User Refusal:** If the user says they don't want to provide data ("skip this", "I won't say", etc.):
-            - Set \`value\` to \`null\` (or \`"Not Provided"\` for enums).
-            - Set \`confidence\` to \`1.0\`.
+        EXTRACTION RULES BY FIELD TYPE:
+        - **Text fields**: Extract the actual text value
+        - **Number fields**: Extract numeric values, handle ranges and approximations
+        - **Boolean fields**: Look for yes/no, true/false, agree/disagree patterns
+        - **Choice fields**: Match user input to enum values, use closest match
+        - **Date fields**: Parse various date formats (MM/DD/YYYY, DD/MM/YYYY, etc.)
+        - **File fields**: Extract file names or descriptions mentioned
+        
+        SPECIAL HANDLING:
+        - **Explicit User Refusal:** If user says "skip", "don't want to", "I won't say", etc.:
+            - Set \`value\` to \`null\`
+            - Set \`confidence\` to \`1.0\`
             - Set \`reasoning\` to "User explicitly refused to provide this information."
-        - **Information Not Found:** If the field isn't mentioned, set \`value\` to \`null\`, \`confidence\` to \`0.0\`, and \`reasoning\` to "Information not found in the provided content."
-        - **For enum fields:** Choose the closest matching option from the enum list for the \`value\`.
+        - **Information Not Found:** If field isn't mentioned:
+            - Set \`value\` to \`null\`
+            - Set \`confidence\` to \`0.0\`
+            - Set \`reasoning\` to "Information not found in the provided content."
+        - **For enum fields:** Choose the closest matching option from the enum list
+        - **For boolean fields:** Convert yes/no responses to true/false
         
-        CRITICAL: Your final output must be a single JSON array containing an object for EACH field requested in the schema. Do not include any other text or explanations.
+        CRITICAL: Your final output must be a single JSON array containing an object for EACH field in the schema. Do not include any other text or explanations.
         
         REQUIRED JSON FORMAT (EXAMPLE):
         [
           {
-            "name": "field_name_from_schema_1",
-            "value": "extracted value 1",
+            "name": "firstName",
+            "value": "John",
             "confidence": 0.95,
-            "reasoning": "The user said 'My name is extracted value 1'."
+            "reasoning": "The user said 'My name is John'."
           },
           {
-            "name": "field_name_from_schema_2",
+            "name": "email",
+            "value": "john@example.com",
+            "confidence": 0.9,
+            "reasoning": "The user provided their email address."
+          },
+          {
+            "name": "agreement",
             "value": null,
             "confidence": 1.0,
             "reasoning": "User explicitly refused to provide this information."

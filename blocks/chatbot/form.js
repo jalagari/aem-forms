@@ -19,7 +19,8 @@ const fillableFieldTypes = new Set([
     'checkbox',
     'range',
     'color',
-    'captcha'
+    'captcha',
+    'panel'
 ]);
 
 export default class Form extends EventTarget {
@@ -35,6 +36,10 @@ export default class Form extends EventTarget {
     }
 
     _isFillableField(item) {
+        if(!fillableFieldTypes.has(item.fieldType)) {
+            return false;
+        }
+
         if(!item.value || !item.valid) {
             if (item.visible === false || item.enabled === false || item.readOnly === true) {
                 return false;
@@ -121,13 +126,10 @@ export default class Form extends EventTarget {
                 return;
             }
 
-            // If it's a fillable field type, add it to our collections
-            if (fillableFieldTypes.has(fieldType)) {
-                const field = this.getField(item.id);
+            const field = this.getField(item.id);
 
-                this.fieldsArray.push(field);
-                this.fillableFields.push(field);
-            }
+            this.fieldsArray.push(field);
+            this.fillableFields.push(field);
         };
 
         // Start extraction from the root form
@@ -220,6 +222,67 @@ export default class Form extends EventTarget {
         }));
     }
 
+    createFormInstanceFromData(formData) {
+        // Create a form definition from the provided data
+        this.formDef = {
+            title: formData.title,
+            items: formData.fields.map(field => ({
+                id: field.name,
+                name: field.name,
+                fieldType: this.mapFieldType(field.type),
+                label: { value: field.label },
+                required: field.required || false,
+                ...this.getFieldProperties(field)
+            }))
+        };
+        
+        this.instance = createFormInstance(this.formDef);
+        this.subscribe();
+        this._extractFillableFields();
+        
+        this.dispatchEvent(new CustomEvent('formReady', {
+            detail: {
+                formDef: this.formDef,
+                fillableFields: this.fillableFields,
+                totalFields: this.fieldsArray.length
+            }
+        }));
+    }
+
+    mapFieldType(type) {
+        const typeMap = {
+            'text': 'text-input',
+            'email': 'email',
+            'tel': 'tel',
+            'password': 'password',
+            'textarea': 'multiline-input',
+            'number': 'number-input',
+            'date': 'date-input',
+            'time': 'datetime-input',
+            'select': 'drop-down',
+            'radio': 'radio-group',
+            'checkbox': 'checkbox-group',
+            'boolean': 'checkbox'
+        };
+        return typeMap[type] || 'text-input';
+    }
+
+    getFieldProperties(field) {
+        const properties = {};
+        
+        if (field.options) {
+            properties.items = field.options.map(option => ({
+                value: option,
+                text: option
+            }));
+        }
+        
+        if (field.min !== undefined) properties.min = field.min;
+        if (field.max !== undefined) properties.max = field.max;
+        
+        return properties;
+    }
+
     getFillableFields() {
         return this.fillableFields;
     }
@@ -297,5 +360,9 @@ export default class Form extends EventTarget {
             this.fieldMap.clear();
             this.fieldsArray = [];
         }
+    }
+
+    getThankYouMessage() {
+        return this.instance?.properties?.thankYouMessageContent || "Thank you for your submission!";
     }
 }

@@ -18,6 +18,7 @@ class ChatBot extends EventTarget {
     this.systemMessagesContent = null;
     this.toggleSystemBtn = null;
     this.closeBtn = null;
+    
     this.init();
   }
 
@@ -177,7 +178,7 @@ class ChatBot extends EventTarget {
    * Post a message to the chatbot
    * @param {Object} messageData - The message data
    */
-  postMessage = (messageData) => {
+  postMessage = async (messageData) => {
     const message = {
       id: messageData.id || this.generateMessageId(),
       type: messageData.type || 'text',
@@ -192,7 +193,7 @@ class ChatBot extends EventTarget {
     };
 
     this.messageQueue.push(message);
-    this.renderMessage(message);
+    await this.renderMessage(message);
     this.scrollToBottom();
 
     return message.id;
@@ -216,14 +217,14 @@ class ChatBot extends EventTarget {
     }));
   }
 
-  renderMessage(message) {
+  async renderMessage(message) {
     if (message.sender === 'system') {
         this.renderSystemMessage(message);
         return;
     }
     const handler = this.messageHandlers.get(message.type);
     if (handler) {
-      handler(message);
+      await handler(message);
     } else {
       console.warn(`No handler found for message type: ${message.type}`);
       this.renderTextMessage(message);
@@ -254,7 +255,7 @@ class ChatBot extends EventTarget {
     this.messagesContainer.appendChild(messageElement);
   }
 
-  renderBooleanMessage(message) {
+  async renderBooleanMessage(message) {
     const messageElement = this.createMessageElement(message);
     const bubble = messageElement.querySelector('.message-bubble');
     
@@ -271,7 +272,7 @@ class ChatBot extends EventTarget {
     }
 
     // Create boolean buttons
-    const buttonsElement = this.createBooleanButtons(message.boolean, message.onSubmit);
+    const buttonsElement = await this.createBooleanButtons(message.field);
     booleanContainer.appendChild(buttonsElement);
 
     bubble.appendChild(booleanContainer);
@@ -280,7 +281,7 @@ class ChatBot extends EventTarget {
     this.messagesContainer.appendChild(messageElement);
   }
 
-  renderChoiceMessage(message) {
+  async renderChoiceMessage(message) {
     const messageElement = this.createMessageElement(message);
     const bubble = messageElement.querySelector('.message-bubble');
     
@@ -297,7 +298,7 @@ class ChatBot extends EventTarget {
     }
 
     // Create choice buttons
-    const choicesElement = this.createChoiceButtons(message.choices, message.onSubmit);
+    const choicesElement = await this.createChoiceButtons(message.field);
     choiceContainer.appendChild(choicesElement);
 
     bubble.appendChild(choiceContainer);
@@ -306,7 +307,7 @@ class ChatBot extends EventTarget {
     this.messagesContainer.appendChild(messageElement);
   }
 
-  renderFieldMessage(message) {
+  async renderFieldMessage(message) {
     const messageElement = this.createMessageElement(message);
     const bubble = messageElement.querySelector('.message-bubble');
     
@@ -323,7 +324,7 @@ class ChatBot extends EventTarget {
     }
 
     // Create the input field
-    const fieldElement = this.createSingleField(message.field, message.onSubmit);
+    const fieldElement = await this.createSingleField(message.field);
     fieldContainer.appendChild(fieldElement);
 
     bubble.appendChild(fieldContainer);
@@ -399,21 +400,37 @@ class ChatBot extends EventTarget {
     return messageElement;
   }
 
-  createBooleanButtons(booleanConfig, onSubmit) {
+  async createBooleanButtons(field) {
     const container = document.createElement('div');
     container.className = 'boolean-buttons-container';
     
-    const { name, trueLabel = 'Yes', falseLabel = 'No' } = booleanConfig;
+    const { name, enum: enumValues, enumNames } = field;
+    
+    // Use enum values if available, otherwise default to "on"/"off"
+    let trueValue, falseValue, trueLabel, falseLabel;
+    
+    if (enumValues && enumValues.length >= 2) {
+      trueValue = enumValues[0];
+      falseValue = enumValues[1];
+      trueLabel = enumNames && enumNames[0] ? enumNames[0] : trueValue;
+      falseLabel = enumNames && enumNames[1] ? enumNames[1] : falseValue;
+    } else {
+      trueValue = 'on';
+      falseValue = 'off';
+      trueLabel = 'Yes';
+      falseLabel = 'No';
+    }
     
     // Create True button
     const trueButton = document.createElement('button');
     trueButton.type = 'button';
     trueButton.className = 'boolean-button true-button';
     trueButton.textContent = trueLabel;
+    trueButton.dataset.value = trueValue;
     
     trueButton.addEventListener('click', () => {
       // Store the data
-      this.conversationData[name] = true;
+      this.conversationData[name] = trueValue;
       
       // Disable all buttons
       container.querySelectorAll('.boolean-button').forEach(btn => {
@@ -423,10 +440,13 @@ class ChatBot extends EventTarget {
       trueButton.classList.add('selected');
       container.style.opacity = '0.7';
 
-      // Call the callback
-      if (onSubmit) {
-        onSubmit({ [name]: true }, this.conversationData);
-      }
+      // Send message directly
+      this.receivedMessage({
+        type: 'text',
+        sender: 'user',
+        content: trueValue,
+        field: field
+      });
     });
     
     // Create False button
@@ -434,10 +454,11 @@ class ChatBot extends EventTarget {
     falseButton.type = 'button';
     falseButton.className = 'boolean-button false-button';
     falseButton.textContent = falseLabel;
+    falseButton.dataset.value = falseValue;
     
     falseButton.addEventListener('click', () => {
       // Store the data
-      this.conversationData[name] = false;
+      this.conversationData[name] = falseValue;
       
       // Disable all buttons
       container.querySelectorAll('.boolean-button').forEach(btn => {
@@ -447,10 +468,13 @@ class ChatBot extends EventTarget {
       falseButton.classList.add('selected');
       container.style.opacity = '0.7';
 
-      // Call the callback
-      if (onSubmit) {
-        onSubmit({ [name]: false }, this.conversationData);
-      }
+      // Send message directly
+      this.receivedMessage({
+        type: 'text',
+        sender: 'user',
+        content: falseValue,
+        field: field
+      });
     });
     
     container.appendChild(trueButton);
@@ -459,83 +483,34 @@ class ChatBot extends EventTarget {
     return container;
   }
 
-  createSingleField(fieldConfig, onSubmit) {
+  async createSingleField(field) {
     const container = document.createElement('div');
     container.className = 'single-field-wrapper';
     
-    const { type, name, placeholder, required, options = {} } = fieldConfig;
+    // Import form utilities
+    const { createInput, setConstraints, setPlaceholder, getHTMLRenderType } = await import('../form/util.js');
     
     let inputElement;
     let submitButton;
 
-    switch (type) {
-      case 'date':
-      case 'time':
-      case 'datetime-local':
-        inputElement = document.createElement('input');
-        inputElement.type = type;
-        inputElement.name = name;
-        inputElement.required = required || false;
-        inputElement.className = 'field-input';
-        break;
-
-      case 'file':
-        inputElement = document.createElement('input');
-        inputElement.type = 'file';
-        inputElement.name = name;
-        inputElement.required = required || false;
-        inputElement.className = 'field-input';
-        if (options.accept) {
-          inputElement.accept = options.accept;
-        }
-        if (options.multiple) {
-          inputElement.multiple = true;
-        }
-        break;
-
-      case 'select':
-        inputElement = document.createElement('select');
-        inputElement.name = name;
-        inputElement.required = required || false;
-        inputElement.className = 'field-input';
-        
-        if (placeholder) {
-          const placeholderOption = document.createElement('option');
-          placeholderOption.value = '';
-          placeholderOption.textContent = placeholder;
-          placeholderOption.disabled = true;
-          placeholderOption.selected = true;
-          inputElement.appendChild(placeholderOption);
-        }
-        
-        if (options.options) {
-          options.options.forEach(option => {
-            const optionElement = document.createElement('option');
-            optionElement.value = option.value || option;
-            optionElement.textContent = option.label || option;
-            inputElement.appendChild(optionElement);
-          });
-        }
-        break;
-
-      case 'textarea':
-        inputElement = document.createElement('textarea');
-        inputElement.name = name;
-        inputElement.placeholder = placeholder || '';
-        inputElement.required = required || false;
-        inputElement.rows = options.rows || 3;
-        inputElement.className = 'field-input';
-        break;
-
-      default:
-        // For 'text', 'email', 'number', etc.
-        inputElement = document.createElement('input');
-        inputElement.type = type || 'text';
-        inputElement.name = name;
-        inputElement.placeholder = placeholder || '';
-        inputElement.required = required || false;
-        inputElement.className = 'field-input';
-        break;
+    // Use existing form utility to create input
+    inputElement = createInput(field);
+    inputElement.className = 'field-input';
+    
+    // Apply constraints and placeholder using existing utilities
+    setConstraints(inputElement, field);
+    setPlaceholder(inputElement, field);
+    
+    // Set required attribute
+    if (field.required) {
+      inputElement.setAttribute('required', 'required');
+    }
+    
+    // Handle special cases that need custom logic
+    if (field.fieldType === 'drop-down') {
+      // Use existing dropdown creation utility
+      const { createDropdownUsingEnum } = await import('../form/util.js');
+      createDropdownUsingEnum(field, inputElement);
     }
 
     // Create submit button
@@ -551,14 +526,15 @@ class ChatBot extends EventTarget {
     // Handle submission
     const handleSubmit = () => {
       let value;
+      const { name, fieldType, required } = field;
       
-      if (type === 'file') {
+      if (fieldType === 'file-input') {
         value = inputElement.files;
       } else {
         value = inputElement.value.trim();
       }
 
-      if (required && (!value || (type !== 'file' && value === ''))) {
+      if (required && (!value || (fieldType !== 'file-input' && value === ''))) {
         inputElement.style.borderColor = '#ef4444';
         inputElement.focus();
         return;
@@ -574,17 +550,20 @@ class ChatBot extends EventTarget {
       submitButton.disabled = true;
       container.style.opacity = '0.7';
 
-      // Call the callback
-      if (onSubmit) {
-        onSubmit({ [name]: value }, this.conversationData);
-      }
+      // Send message directly
+      this.receivedMessage({
+        type: 'text',
+        sender: 'user',
+        content: value,
+        field: field
+      });
     };
 
     // Event listeners
     submitButton.addEventListener('click', handleSubmit);
     
     inputElement.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && type !== 'textarea') {
+      if (e.key === 'Enter' && field.fieldType !== 'multiline-input') {
         e.preventDefault();
         handleSubmit();
       }
@@ -601,26 +580,29 @@ class ChatBot extends EventTarget {
     return container;
   }
 
-  createChoiceButtons(choices, onSubmit) {
+
+
+  async createChoiceButtons(field) {
     const container = document.createElement('div');
     container.className = 'choice-buttons-container';
     
-    const { type = 'single', options = [] } = choices;
+    const { fieldType, name, enum: enumValues, enumNames } = field;
+    const isMultiple = fieldType === 'checkbox-group';
     
-    if (type === 'single') {
+    if (!isMultiple) {
       // Single selection - radio-like buttons
-      options.forEach((option, index) => {
+      enumValues.forEach((option, index) => {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'choice-button single-choice';
-        button.textContent = option.label || option;
-        button.dataset.value = option.value || option;
+        button.textContent = enumNames && enumNames[index] ? enumNames[index] : option;
+        button.dataset.value = option;
         
         button.addEventListener('click', () => {
           const value = button.dataset.value;
           
           // Store the data
-          this.conversationData[choices.name || 'choice'] = value;
+          this.conversationData[name] = value;
           
           // Disable all buttons
           container.querySelectorAll('.choice-button').forEach(btn => {
@@ -631,27 +613,30 @@ class ChatBot extends EventTarget {
           button.classList.add('selected');
           container.style.opacity = '0.7';
 
-          // Call the callback
-          if (onSubmit) {
-            onSubmit({ [choices.name || 'choice']: value }, this.conversationData);
-          }
+          // Send message directly
+          this.receivedMessage({
+            type: 'text',
+            sender: 'user',
+            content: value,
+            field,
+          });
         });
         
         container.appendChild(button);
       });
-    } else if (type === 'multiple') {
+    } else {
       // Multiple selection - checkbox-like buttons
       const selectedValues = [];
       
-      options.forEach((option, index) => {
+      enumValues.forEach((option, index) => {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'choice-button multiple-choice';
         button.innerHTML = `
           <span class="choice-checkbox">☐</span>
-          <span class="choice-text">${option.label || option}</span>
+          <span class="choice-text">${enumNames && enumNames[index] ? enumNames[index] : option}</span>
         `;
-        button.dataset.value = option.value || option;
+        button.dataset.value = option;
         
         button.addEventListener('click', () => {
           const value = button.dataset.value;
@@ -681,7 +666,7 @@ class ChatBot extends EventTarget {
       
       submitButton.addEventListener('click', () => {
         // Store the data
-        this.conversationData[choices.name || 'choices'] = selectedValues;
+        this.conversationData[name] = selectedValues;
         
         // Disable all buttons
         container.querySelectorAll('button').forEach(btn => {
@@ -690,10 +675,13 @@ class ChatBot extends EventTarget {
         
         container.style.opacity = '0.7';
 
-        // Call the callback
-        if (onSubmit) {
-          onSubmit({ [choices.name || 'choices']: selectedValues }, this.conversationData);
-        }
+        // Send message directly
+        this.receivedMessage({
+          type: 'text',
+          sender: 'user',
+          content: selectedValues,
+          field,
+        });
       });
       
       container.appendChild(submitButton);
@@ -802,7 +790,7 @@ class ChatBot extends EventTarget {
     this.postMessage({
       type: 'text',
       sender: 'assistant',
-      content: "👋 Hello! I'm your conversational form assistant."
+      content: "👋 Hello! I'm your smart form assistant. I'll help you fill out forms intelligently - using conversation for simple fields and widgets for complex ones.\n\nType 'start' to begin or load a form to get started!"
     });
   }
 
@@ -859,6 +847,8 @@ class ChatBot extends EventTarget {
     this.clearImagePreview();
     this.inputElement.placeholder = 'Type your message or click the microphone...';
   }
+
+
 
   renderSystemMessage(message) {
     const messageElement = document.createElement('div');

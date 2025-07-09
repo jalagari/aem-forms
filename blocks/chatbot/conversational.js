@@ -10,26 +10,25 @@ export default class Conversational extends EventTarget {
         this.collectedData = {};
         this.conversationHistory = [];
         this.form = null;
-        this.processedFields = new Set();
         this.form = new Form();
         this.model = new AIModel();
+        
+        // Field type classification for smart processing
+        this.complexFieldTypes = new Set(['drop-down', 'radio-group', 'checkbox-group', 'checkbox', 'date-input', 'datetime-input', 'file-input', 'range', 'color']);
     }
 
-    updateConversationHistory(message, person = 'system', requestedFields = []) {
-        const messageObject = {
-            role: person,
-            content: message
+    updateConversationHistory(content, person = 'system', type = 'text', field = null) {
+        const message = {
+            sender: person,
+            content,
+            type,
         };
-        if (requestedFields.length > 0) {
-            messageObject.requestedFields = requestedFields;
+        if (field) {
+            message.field = field;
         }
-        this.conversationHistory.push(messageObject);
+        this.conversationHistory.push(message);
         this.dispatchEvent(new CustomEvent('conversationUpdated', {
-            detail: {
-                message,
-                role: person,
-                requestedFields: requestedFields,
-            }
+            detail: message
         }));
     }
 
@@ -41,12 +40,9 @@ export default class Conversational extends EventTarget {
         this.updateConversationHistory("Loading form...");
         this.form.createFormInstance(this.formUrl);
         this.updateConversationHistory("Waiting for form to ready...");
-        this.form.addEventListener('importComplete', async () => {
-            await this.processNextFields();
-        });
         this.form.addEventListener('formReady', async (e) => {
             this.updateConversationHistory("Form ready");
-            await this.processNextFields();
+            await this.identifyFields();
         });
     }
 
@@ -54,23 +50,26 @@ export default class Conversational extends EventTarget {
         const invalidFields = this.form.getInvalidFields();
         if (invalidFields.length > 0) {
             const field = invalidFields[0];
+            const isFieldComplex = this.complexFieldTypes.has(field.fieldType); 
             const message = `Invalid field: ${field.label?.value || field.label || field.name}, reason: ${field.validationMessage}`;
-            this.updateConversationHistory(message, 'assistant', [field.id]);
+            if (isFieldComplex) {
+                await this.processComplexField(message, field);
+            } else {
+                this.updateConversationHistory(message, 'assistant');
+            }
         } else {
-            return await this.processNextFields();
+            return await this.identifyFields();
         }
     }
 
-    getSchema(keys) {
+    getSchema(fields) {
         const schema  = {
             "type": "object",
             "properties": {
             }
           };
         
-        const fillableFields = keys || this.form.getFillableFields();
-
-        fillableFields.forEach(f => {
+        fields.forEach(f => {
             let field = f;
             if (typeof f === 'string') {
                 field = this.form.getField(f);
@@ -88,75 +87,137 @@ export default class Conversational extends EventTarget {
         return schema;
     }
 
-    async processNextFields() {
+    async identifyFields() {
         const availableFields = this.form.getFillableFields();
         
         if (availableFields.length === 0) {
             return await this.completeConversation();
         }
-        const schema = this.getSchema();
 
+        // Get next field or group of fields
+        this.currentRequestedFields = this.getNextFields(availableFields);
+        
+        if (this.currentRequestedFields.length === 0) {
+            return await this.completeConversation();
+        }
+
+        // Process the fields
+        if (this.currentRequestedFields.length === 1 && this.isComplexField(this.currentRequestedFields[0])) {
+            await this.processComplexField(this.currentRequestedFields[0]);
+        } else {
+            await this.processNextFields();
+        }
+    }
+
+    getNextFields(availableFields) {
+        const fields = [];
+        
+        for (let i = 0; i < availableFields.length; i++) {
+            const field = availableFields[i];
+            
+            if (this.isComplexField(field)) {
+                // If we have simple fields, return them first
+                if (fields.length > 0) {
+                    return fields;
+                }
+                // Otherwise, return just this complex field
+                return [field];
+            } else {
+                fields.push(field);
+                if (fields.length >= 4) {
+                    return fields;
+                }
+            }
+        }
+        
+        return fields;
+    }
+
+    isComplexField(field) {
+        return this.complexFieldTypes.has(field.fieldType);
+    }
+
+    async processNextFields() {
         try {
-            this.updateConversationHistory("Grouping fields for smart question...", 'system');
+            this.updateConversationHistory("Generating question for selected fields...", 'system');
+            
+            // Get schema for the selected fields
+            const schema = this.getSchema(this.currentRequestedFields);
             const response = await this.model.getSmartQuestion(schema);
             
             // Store which fields we're asking about
-            this.currentRequestedFields = response.requestedFields || [];
             
-            this.updateConversationHistory(`Grouped fields for question: ${JSON.stringify(this.currentRequestedFields)}`, 'system');
-            this.updateConversationHistory(response.message, 'assistant', this.currentRequestedFields);
+            this.updateConversationHistory(`Generated question: ${response.message}`, 'system');
+            this.updateConversationHistory(response.message, 'assistant');
             
         } catch (error) {
             console.error('Error asking for fields:', error);
             // Simple fallback
-            const firstFewFields = availableFields.slice(0, 3);
-            const fieldNames = firstFewFields.map(f => f.label?.value || f.label || f.name).join(', ');
-            const fallbackMessage = `I'd like to collect some information: ${fieldNames}. Could you please provide these details?`;
+            const fieldLabels = this.currentRequestedFields.map(field => 
+                field.label?.value || field.label || field.name
+            ).join(', ');
+            const fallbackMessage = `I'd like to collect some information: ${fieldLabels}. Could you please provide these details?`;
             
-            this.currentRequestedFields = firstFewFields.map(f => f.id);
-            
-            this.updateConversationHistory(fallbackMessage, 'assistant', this.currentRequestedFields);
+            this.updateConversationHistory(fallbackMessage, 'assistant');
         }
     }
 
+
+    async processComplexField(field) {
+        const messageType = this.getFieldMessageType(field);
+        const message = field.label?.value || field.label || field.name;
+        
+        this.updateConversationHistory(
+            message, 
+            'assistant', 
+            messageType,
+            field
+        );
+    }
+
+    getFieldMessageType(field) {
+        const fieldType = field.fieldType;
+        if (fieldType === 'checkbox') return 'boolean';
+        if (['drop-down', 'radio-group', 'checkbox-group'].includes(fieldType)) return 'choice';
+        return 'field';
+    }
+    
     async processUserResponse(message) {
-        const { content, image, type } = message;
+        const { content, image, field } = message;
+        
         if (!this.currentRequestedFields) {
-            return { message: "Thank you!", isComplete: true };
+            this.updateConversationHistory(this.form.getThankYouMessage(), 'assistant', 'html');
+        }
+
+        // Handle direct field response (from widgets)
+        if (field) {
+            this.collectedData[field.name] = content;
+            await this.form.updateFormData(this.collectedData);
+            return await this.invalidField();
         }
         
+        // Handle conversational response (from text input)
         try {
             this.updateConversationHistory("Extracting data from user response...", 'system');
-            const schema = this.getSchema(image ? this.form.getFillableFields() : this.currentRequestedFields);
+            const schema = this.getSchema(this.currentRequestedFields);
             const response = await this.model.extractData(schema, content, image);
             
-            // Update form with extracted data and track confidence scores
-            console.log("Extracted Data", response);
             if (response) {
-                console.log("Collected Data", this.collectedData);
                 response.forEach((field) => {
-                    if(field.value && field.confidence > 0.5) {
+                    if (field.value && field.confidence > 0.5) {
                         this.collectedData[field.name] = field.value;
-                    } else {
-                        this.collectedData[field.name] = null;
-                        // this.updateConversationHistory(`I'm not entirely sure about: ${fieldKey}. The extracted value might need clarification.`);
                     }
                 });
-                this.updateConversationHistory(`Collected Data: ${JSON.stringify(this.collectedData)}`, 'system');
-                console.log("Collected Data", this.collectedData);
-                this.updateConversationHistory("Updating form data...", 'system');
+                
                 await this.form.updateFormData(this.collectedData);
-                await this.invalidField();
+                return await this.invalidField();
             } else {
-                this.updateConversationHistory("I didn't quite understand that. Could you please try again?", 'assistant', this.currentRequestedFields);
+                this.updateConversationHistory("I didn't quite understand that. Could you please try again?", 'assistant');
             }
             
         } catch (error) {
             console.error('Error processing response:', error);
-            return {
-                message: "I didn't quite understand that. Could you please try again?",
-                isComplete: false
-            };
+            this.updateConversationHistory("I didn't quite understand that. Could you please try again?", 'assistant');
         }
     }
 
@@ -169,7 +230,7 @@ export default class Conversational extends EventTarget {
             
         const message = `Perfect! ${summary} Your form is now complete and ready to submit.`;
         
-        this.updateConversationHistory(message);
+        this.updateConversationHistory(message, 'assistant');
         
         return {
             message: message,
@@ -178,14 +239,13 @@ export default class Conversational extends EventTarget {
         };
     }
 
-
     getProgress() {
         const totalFields = this.form ? this.form.getFillableFields().length : 0;
-        const processedCount = this.processedFields.size;
+        const collectedCount = Object.keys(this.collectedData).length;
         return {
-            current: processedCount,
+            current: collectedCount,
             total: totalFields,
-            percentage: totalFields > 0 ? Math.round((processedCount / totalFields) * 100) : 0
+            percentage: totalFields > 0 ? Math.round((collectedCount / totalFields) * 100) : 0
         };
     }
 
@@ -200,7 +260,6 @@ export default class Conversational extends EventTarget {
     reset() {
         this.collectedData = {};
         this.conversationHistory = [];
-        this.processedFields.clear();
         this.currentRequestedFields = null;
     }
 }

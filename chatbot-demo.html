@@ -19,7 +19,7 @@
                        id="formUrl" 
                        class="form-url-input"
                        placeholder="Enter form URL (e.g., https://example.com/form)" 
-                       value="https://main--aem-boilerplate-forms--adobe-rnd.aem.live/content/jalagari/all">
+                       value="https://www.securbankdemo.com/accounts">
                 <br>
                 <button class="start-button" onclick="startConversationalForm()">
                     🔄 Start Conversation
@@ -96,11 +96,7 @@
         
         // Register handler for user responses
         conversational.addEventListener('conversationUpdated', (e) => {
-            chatbot.postMessage({
-                type: 'text',
-                content: e.detail.message,
-                sender: e.detail.role
-            });
+            chatbot.postMessage(e.detail);
         });
 
         chatbot.addEventListener('messageReceived', (e) => {
